@@ -1,0 +1,279 @@
+/*
+   Implementation of algorithms in the paper:
+   On the alpha value of polynomials in the Tower Number Field Sieve Algorithm,
+   Aurore Guillevic (Inria Nancy, France) and Shashank Singh (IISER Bhopal, India)
+   eprint 2019/885.
+
+   Implementation: Aurore Guillevic and Shashank Singh
+
+   Test of alpha for h = y^3+15.
+
+   The computed exact value of alpha is a bias of valuation of (small) primes
+   at norms of elements of a number field compared to integers of the same size.
+
+   Compute the valuation as in Tab. 3.1 of Shi Bai thesis
+   See http://maths.anu.edu.au/~brent/pd/Bai-thesis.pdf
+
+   Other possible choices of h:
+   irreducible, class number = 1
+   y^3+2, y^3+3, y^3+4, y^3+5, y^3+6, y^3+9, y^3+10, y^3+12, y^3+16, y^3+17, y^3+18
+   irreducible, class number = 2
+   y^3+11, y^3+15
+   irreducible, class number = 3
+   y^3+7, y^3+13, y^3+14, y^3+19, y^3+20
+
+   Code for computing for N=10^8 random values the valuation for all prime
+   ideals up to B=2000, this is turned off because it takes some hours.
+   To re-compute the experimental valuations you need to give parameters to
+   Magma on the command line:
+
+   magma id:=1 h-deg3-non-principal-proj-roots.mag
+
+   see http://magma.maths.usyd.edu.au/magma/handbook/text/47
+   Turn on the relevant pieces of code and parallelize on a node of some dozen
+   of cores.
+*/
+SetColumns(0);
+SetClassGroupBounds("GRH");
+ZZ := Integers();
+QQ := Rationals();
+ZZy<y> := PolynomialRing(ZZ);
+
+Attach("../alpha_tnfs_2d.mag");
+Attach("utils.mag");
+
+/*if not assigned id then
+    printf "please assign an id in [1,2,...#jobs]\n";
+    quit;
+else
+    id := StringToInteger(id);
+end if;*/
+
+h:=y^3+15;
+
+deg_h := Degree(h);
+Kh<ah> := NumberField(h);
+Oh := MaximalOrder(Kh);  
+Oh1 := ideal<Oh|1>; // ideal containing all, for testing wether two ideals are coprime
+OhX<X> := PolynomialRing(Oh);
+Khx<x> := PolynomialRing(Kh);
+Kh_x1x2<x1,x2> := PolynomialRing(Kh,2);
+printf "h = %o\n", h;
+monic_f := false;
+
+deg_f := 4;
+// with projective roots:
+f := (8*ah^2 - 8*ah - 6)*x^4 + (-11*ah^2 - 11*ah + 1)*x^3 + (-8*ah^2 + 12*ah + 9)*x^2 + (-6*ah^2 + 10*ah + 9)*x + 9*ah^2 + 6*ah + 11;
+
+/*disc(f) = -559475230797*ah^2 + 762724216611*ah - 7044411502401
+-3*7^2 * (3805953951*ah^2 - 5188600113*ah + 47921166683) */
+
+disc_f := Discriminant(f);
+I_disc_f := ideal<Oh|disc_f>;
+gcd_disc_f := Gcd([ZZ ! ei : ei in Eltseq(disc_f)]);
+factors_disc_f := Factorization(I_disc_f);
+ld_f := LeadingCoefficient(f);
+I_ld_f := ideal<Oh|ld_f>;
+factors_ld_f := Factorization(I_ld_f);
+
+printf "f = %o\n", f;
+printf "disc(f) = %o\n", disc_f;
+printf "disc_f = %o * (%o)\n", gcd_disc_f, disc_f/gcd_disc_f;
+printf "Norm(disc_f) = %o\n", Factorization(ZZ ! Norm(disc_f));
+printf "factors(disc(f)) = %o\n", factors_disc_f;
+printf "ld(f) = %o\n", ld_f;
+printf "factors(ld(f)) = %o\n", factors_ld_f;
+
+B := 2000;
+PrB := PrimesUpTo(B);
+list_I := &cat [[i[1]: i in Factorisation(ideal<Oh|l>)]: l in PrB];
+printf "there are %o prime ideals above the %o prime numbers up to B=%o\n", #list_I, #PrB, B;
+
+//N := 10^5;// 10^5 = 1 min on Intel corei7 laptop
+N := 10^8;
+A := 10^6;
+printf "computing experimentally the valuation for N=%o random coprime pairs\n", N;
+//sum_val_I, ratio_coprime_pairs_Oh := MonteCarlo_count_val(N,A,Oh1,deg_h,f,list_I);
+sum_val_I := [ 133343329, 20001870, 99987108, 20822439, 24999791, 37513079, 27083835, 0, 825609, 45690, 23607316, 346664, 14590, 4353772, 0, 0, 0, 12918376, 12914908, 0, 7930, 2440633, 59144, 0, 4259840, 90376, 1889104, 71231, 0, 28768, 0, 0, 1491841, 0, 2817248, 19939, 496, 0, 1265424, 0, 0, 14286, 0, 0, 232, 0, 19603, 192, 0, 17331, 155, 1767643, 7854, 0, 762380, 23333, 2919881, 5405, 76, 0, 0, 21, 0, 0, 1198757, 3699, 1156379, 3312, 2234450, 0, 16, 522436, 0, 15, 507731, 5225, 9, 0, 1794052, 447275, 0, 883014, 2001, 1749091, 873713, 873890, 0, 3543, 417244, 3485, 8, 0, 3234, 388508, 0, 0, 2832, 744199, 2753, 0, 721074, 360845, 0, 0, 0, 353747, 352125, 707757, 684211, 2339, 0, 321503, 1052, 0, 0, 0, 302703, 301912, 302592, 2, 287920, 806, 0, 283311, 1678, 0, 0, 271094, 272368, 544576, 0, 0, 260982, 0, 514392, 0, 504407, 1007767, 251786, 249478, 630, 2, 237997, 0, 2, 464122, 475, 3, 0, 225770, 1017, 222281, 1008, 0, 0, 464, 215179, 215334, 0, 214322, 1843, 416678, 865, 0, 203122, 788, 1, 198535, 395, 392208, 0, 0, 0, 1, 184488, 184832, 369083, 0, 179600, 324, 177671, 317, 176074, 635, 175242, 0, 176080, 0, 341713, 0, 0, 0, 333705, 566, 0, 0, 0, 0, 271, 0, 0, 155608, 469, 622144, 0, 155606, 0, 0, 613071, 0, 303576, 0, 0, 148661, 148426, 297529, 295510, 871, 146867, 427, 2, 0, 413, 0, 277982, 0, 1, 1, 0, 537871, 175, 0, 0, 130932, 372, 0, 258355, 162, 0, 0, 154, 124368, 0, 245738, 0, 0, 0, 0, 0, 0, 0, 241406, 0, 0, 0, 0, 233957, 0, 0, 116597, 126, 0, 0, 0, 114223, 227528, 113837, 454428, 152, 0, 225268, 0, 219987, 110788, 110577, 109843, 0, 0, 430902, 226, 0, 0, 107452, 106264, 0, 0, 0, 209800, 0, 0, 0, 113, 102710, 114, 203256, 104, 0, 0, 200772, 100350, 0, 98802, 192, 98479, 94, 0, 0, 85, 97033, 388095, 96984, 1, 0, 176, 190564, 0, 94889, 187912, 93, 0, 0, 0, 91830, 169, 0, 0, 106, 0, 92, 89818, 0, 0, 88994, 0, 0, 0, 173679, 132, 0, 86064, 0, 0, 0, 84696, 170061, 73, 168411, 128, 84163, 0, 166211, 84075, 82344, 82247, 0, 82043, 164217, 63, 163735, 136, 0, 61, 0, 162232, 0, 161174, 80763, 0, 0, 0, 0, 156536, 62, 0, 0, 0, 155254, 114, 0, 0, 153956, 0, 153754, 0, 154387, 153124, 108, 151581, 57, 0, 0, 73588, 0, 0, 49, 73172, 110, 0, 0, 71054, 0, 0, 0, 0, 0, 139553, 46, 279048, 0, 0, 69001, 0, 137831, 0, 137592, 0, 1, 135074, 0, 0, 134841, 179, 67412, 134936, 0, 0, 44, 66568, 30, 0, 0, 131493, 49, 130805, 65495, 0, 0, 0, 64478, 64722, 0, 52, 0, 46, 0, 63346, 36, 0, 63612, 0, 63369, 42, 62247, 62604, 0, 124116, 77, 123926, 0, 248338, 0, 124193, 0, 46, 0, 44, 0, 0, 121916, 81, 0, 0, 120160, 68, 0, 0, 58531, 0, 59247, 66, 0, 0, 73, 116162, 0, 0, 0, 40, 57637, 229336, 0, 0, 0, 56787, 56498, 113531, 56138, 0, 112851, 0, 56035, 0, 223580, 55987, 111507, 55572, 55198, 55548, 110768, 108, 55088, 0, 0, 107955, 0, 107668, 0, 53885, 0, 106741, 53456, 106980, 0, 0, 0, 55, 1, 52575, 107, 52678, 31, 0, 54, 0, 117, 0, 31, 0, 205353, 40, 0, 0, 0, 0, 51, 50276, 0, 100706, 50342, 99902, 100263, 0, 26, 0 ];
+
+ratio_coprime_pairs_Oh := 0.551321434431037060719256018861;
+
+printf "\nratio_coprime_pairs = %o\n", ratio_coprime_pairs_Oh;
+printf "\nsum_val_I := %o;\n", sum_val_I;
+//printf "\nsum_val_I_%o := %o;\n", id, sum_val_I;
+
+//quit;
+
+thr_val, idx_bad_I, idx_proj_I := compute_expected_valuation(list_I,f,I_disc_f,Oh1,Kh_x1x2);
+
+av_val := [1.0*sum_val_I[j]/N: j in [1..#list_I]];
+ratio := ratio_val(av_val, thr_val);
+
+wrong_values := print_ratio(ratio, thr_val, av_val, 0.2, N);
+printf "possibly wrong values at indices %o\n", wrong_values;
+printf "ideals concerned:\n";
+for idx_wrong in wrong_values do
+    I := list_I[idx_wrong];
+    Norm_I := Abs(ZZ!Norm(I));
+    I_pr, gen := IsPrincipal(I);
+    if I_pr then
+	gen_s := Sprintf("%11o", Kh!gen);
+    else
+	gen_s := &cat [Sprintf("%o,", Is): Is in Generators(I)];
+    end if;
+    printf "I%2o, Norm %6o, <%o>\n", idx_wrong, Norm_I, gen_s;
+end for;
+
+printf "the bad ideals are at index: %o\n", idx_bad_I;
+printf "the ratio between experimental and theoretical expected valuation for bad ideals is:\n  [";
+for i in idx_bad_I do
+    printf "%.5o, ", ratio[i];
+end for;
+printf "]\n";
+printf "these bad ideals are principal: %o\n", [IsPrincipal(list_I[i]): i in idx_bad_I];
+
+printf "projective roots:\n";
+printf "the ideals dividing ld(f) are at index: %o\n", idx_proj_I;
+printf "the ratio between experimental and theoretical expected valuation for these ideals is:\n  [";
+for i in idx_proj_I do
+    printf "%.5o, ", ratio[i];
+end for;
+printf "]\n";
+printf "these ideals are principal: %o\n", [IsPrincipal(list_I[i]): i in idx_proj_I];
+
+
+alpha_f := alpha_TNFS_2d(f,B);
+printf "now computes alpha: %o\n", alpha_f;
+printf "in basis 2: %.3o/Log(2) = %o\n\n", alpha_f, alpha_f/Log(2);
+
+// nice latex printing
+RR := RealField();
+
+printf "bad ideals\n";
+for i in idx_bad_I do
+    I := list_I[i];
+    d_I := Degree(I);
+    gens := Generators(I);
+    l := gens[1];
+    l := ZZ ! l;
+    if #gens gt 1 then
+	fi := gens[2];
+	fi := ZZx ! [ZZ ! ai: ai in Eltseq(fi)];
+	gen_s := Sprintf("%3o,%16o", l,fi);
+    else
+	gen_s := Sprintf("%o                 ", l);
+    end if;
+    if d_I gt 1 then
+	printf "$%3o^%o$ & $\\langle %21o \\rangle$ & %o & %21o & %.7o & %.7o & %.7o \\\\\n", l, d_I, gen_s, Valuation(I_disc_f, I), thr_val[i], RR!thr_val[i], av_val[i], ratio[i];
+    else
+	printf "$%3o  $ & $\\langle %21o \\rangle$ & %o & %21o & %.7o & %.7o & %.7o \\\\\n", l, gen_s, Valuation(I_disc_f, I), thr_val[i], RR!thr_val[i], av_val[i], ratio[i];
+    end if;
+end for;
+
+printf "projective ideals\n";
+for i in idx_proj_I do
+    if i in idx_bad_I then
+	continue;
+    end if;
+    I := list_I[i];
+    d_I := Degree(I);
+    gens := Generators(I);
+    l := gens[1];
+    l := ZZ ! l;
+    if #gens gt 1 then
+	fi := gens[2];
+	fi := ZZx ! [ZZ ! ai: ai in Eltseq(fi)];
+	gen_s := Sprintf("%3o,%16o", l,fi);
+    else
+	gen_s := Sprintf("%o                 ", l);
+    end if;
+    if d_I gt 1 then
+	printf "$%3o^%o$ & $\\langle %21o \\rangle$ & %o & %21o & %.7o & %.7o & %.7o \\\\\n", l, d_I, gen_s, Valuation(I_disc_f, I), thr_val[i], RR!thr_val[i], av_val[i], ratio[i];
+    else
+	printf "$%3o  $ & $\\langle %21o \\rangle$ & %o & %21o & %.7o & %.7o & %.7o \\\\\n", l, gen_s, Valuation(I_disc_f, I), thr_val[i], RR!thr_val[i], av_val[i], ratio[i];
+    end if;
+end for;
+
+printf "regular ideals\n";
+for i := 1 to 100 do
+    if thr_val[i] eq 0 or i in idx_proj_I or i in idx_bad_I then
+	continue;
+    end if;
+    I := list_I[i];
+    d_I := Degree(I);
+    gens := Generators(I);
+    l := gens[1];
+    l := ZZ ! l;
+    if #gens gt 1 then
+	fi := gens[2];
+	fi := ZZx ! [ZZ ! ai: ai in Eltseq(fi)];
+	gen_s := Sprintf("%3o,%16o", l,fi);
+    else
+	gen_s := Sprintf("%o                 ", l);
+    end if;
+    if d_I gt 1 then
+	printf "$%3o^%o$ & $\\langle %21o \\rangle$ & %o & %21o & %.7o & %.7o & %.7o \\\\\n", l, d_I, gen_s, Valuation(I_disc_f, I), thr_val[i], RR!thr_val[i], av_val[i], ratio[i];
+    else
+	printf "$%3o  $ & $\\langle %21o \\rangle$ & %o & %21o & %.7o & %.7o & %.7o \\\\\n", l, gen_s, Valuation(I_disc_f, I), thr_val[i], RR!thr_val[i], av_val[i], ratio[i];
+    end if;
+end for;
+
+
+/*
+h = y^3 + 15
+f = (8*ah^2 - 8*ah - 6)*x^4 + (-11*ah^2 - 11*ah + 1)*x^3 + (-8*ah^2 + 12*ah + 9)*x^2 + (-6*ah^2 + 10*ah + 9)*x + 9*ah^2 + 6*ah + 11
+disc(f) = -559475230797*ah^2 + 762724216611*ah - 7044411502401
+disc_f = 147 * (-3805953951*ah^2 + 5188600113*ah - 47921166683)
+Norm(disc_f) = [ <2, 4>, <3, 3>, <7, 7>, <283, 1>, <2859592963, 1>, <904291875925384319, 1> ]
+
+there are 554 prime ideals above the 303 prime numbers up to B=2000
+ratio_coprime_pairs = 0.551321434431037060719256018861
+
+I 2, Norm      4, <[2, 0, 0],[3, 1, 1],>: bad,  val = 1/5
+I 3, Norm      3, <-2*ah^2 + 5*ah - 12>: bad,  val = 1
+I 5, Norm      7, <[7, 0, 0],[1, 1, 0],>: bad,  val = 1/4
+I 6, Norm      7, <     ah + 2>: bad,  val = 3/8
+computing roots by enumeration. Found 7 roots, 6 were duplicate roots.
+I 7, Norm      7, <[7, 0, 0],[11, 1, 0],>: bad,  val = 13/48
+I107, Norm    283, <[283, 0, 0],[85, 1, 0],>: bad,  val = 1/284
+idx 327 error: ratio 1.27561, theoretical val 8.30972678449879064883451668797E-7, average val 1.06000000000000000000000000000E-6 
+possibly wrong values at indices [ 327 ]
+ideals concerned:
+I327, Norm 1203409, <[1097, 0, 0],[120, 137, 1],>
+the bad ideals are at index: [ 2, 3, 5, 6, 7, 107 ]
+the ratio between experimental and theoretical expected valuation for bad ideals is:
+  [1.00009, 0.99987, 0.99999, 1.00035, 1.00002, 1.00003, ]
+these bad ideals are principal: [ false, true, false, true, false, false ]
+projective roots:
+the ideals dividing ld(f) are at index: [ 1, 2, 3, 6, 7, 11 ]
+the ratio between experimental and theoretical expected valuation for these ideals is:
+  [1.00007, 1.00009, 0.99987, 1.00035, 1.00002, 0.99984, ]
+these ideals are principal: [ false, false, true, true, false, false ]
+computing roots by enumeration. Found 7 roots, 6 were duplicate roots.
+now computes alpha: -2.86104767885286178156765039589
+in basis 2: -2.861/Log(2) = -4.12761929802790327528545618479
+*/
+
+/*
+problem
+
+[ 62, 77, 327, 429, 442, 488, 540 ]
+idx  62 error: ratio 0.72302, theoretical val 2.90448513499054839972742511736E-7, average val 2.10000000000000000000000000000E-7 
+idx  77 error: ratio 0.70925, theoretical val 1.26893907430135209527060428714E-7, average val 9.00000000000000000000000000000E-8 
+idx 327 error: ratio 1.27561, theoretical val 8.30972678449879064883451668797E-7, average val 1.06000000000000000000000000000E-6 
+idx 429 error: ratio 0.67410, theoretical val 4.45037630156906053220383807515E-7, average val 3.00000000000000000000000000000E-7 
+idx 442 error: ratio 1.25414, theoretical val 4.14626531371336583933685045709E-7, average val 5.20000000000000000000000000000E-7 
+idx 488 error: ratio 1.20132, theoretical val 3.32968289099087989161730876231E-7, average val 4.00000000000000000000000000000E-7 
+idx 540 error: ratio 1.51944, theoretical val 2.63254814074989529855105511872E-7, average val 4.00000000000000000000000000000E-7 
+
+
+list_I_wrong := [list_I[i]: i in wrong_values];
+
+sum_val_I_wrong_e8 := [sum_val_I[i] for i in wrong_values];
+
+sum_val_I, ratio_coprime_pairs_Oh := MonteCarlo_count_val(10^10,A,Oh,Oh1,deg_h,f,list_I_wrong);
+
+print sum_val_I;
+
+actually this is only a problem of too small sampling: 10^10 samples are needed. So just forget that.
+*/

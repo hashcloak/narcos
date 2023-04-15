@@ -1,0 +1,105 @@
+/* Timing of alpha.
+
+   Implementation of algorithms in the paper:
+   On the Alpha Value of Polynomials in the Tower Number Field Sieve Algorithm,
+   Aurore Guillevic (Inria Nancy, France) and Shashank Singh (IISER Bhopal, India)
+   eprint 2019/885.
+
+   Implementation: Aurore Guillevic and Sashank Singh
+
+   You can choose different values of N (the number of samples in the
+   Monte-Carlo simulation)
+   Small values of N (10000) induce some differences between Monte-Carlo 
+   estimate and exact computation. larger values of N (100000) provide a closer
+   estimate but the computation is much slower.
+
+*/
+
+SetColumns(0);
+SetClassGroupBounds("GRH");
+ZZ := Integers();
+QQ := Rationals();
+ZZy<y> := PolynomialRing(ZZ);
+
+Attach("../alpha_tnfs_2d.mag");
+Attach("../test/utils.mag");
+
+deg_h:=3; deg_f:=2; monic_f:=false; pmax:=2000; N:=100000; tests_h:=10; tests_f:=10;
+
+printf "deg_h := %o and deg_f = %o, pmax = %o and N = %o\n\n",deg_h, deg_f, pmax, N;
+
+time_alpha_MC := 0.0;// alpha with Monte-Carlo approximation for bad ideals
+time_alpha_lift := 0.0;// exact alpha
+sum_time_alpha_MC := 0.0;
+sum_time_alpha_lift := 0.0;
+sum_nb_ideals := 0;
+
+for ii in [1..tests_h] do
+    time_alpha_MC := 0.0;
+    time_alpha_lift := 0.0;
+    repeat
+	h:=ZZy!([Random(-10,10): i in [0..deg_h-1]] cat [1]);// monic polynomial h
+    until IsIrreducible(h);
+    Kh<Y> := NumberField(h);
+    Khx<x> := PolynomialRing(Kh);
+    Oh := MaximalOrder(Kh);
+    Oh1 := ideal<Oh|1>;
+    printf "h%o = %o, Kh principal: %o\n", ii, h, IsPrincipal(Kh);
+    for jj in [1..tests_f] do
+	f := get_random_f(deg_f, monic_f, Oh1, Khx: fi_max:=12);
+	if deg_h*deg_f le 6 then
+	    printf "f=%78o  ", f;
+	else if deg_h*deg_f le 9 then
+		printf "f=%88o  ", f;
+	    else
+		printf " f=%o\n", f;
+	    end if;
+	end if;
+	t := Cputime();
+	alpha_MC, nb_prime_ideals := alpha_TNFS_2d_MC(f, pmax, N);
+	time_alpha_MC +:= Cputime(t);
+	t := Cputime();
+	alpha_lift := alpha_TNFS_2d(f, pmax);
+	time_alpha_lift +:= Cputime(t);
+	ratio_alpha := alpha_MC/alpha_lift;
+	diff_alpha := alpha_MC-alpha_lift;
+	if ratio_alpha ge 2 or ratio_alpha le 0.5 or Abs(diff_alpha) ge 1.0 then
+	    printf "alpha_MonteCarlo:%7.4o, alpha_lift:%7.4o, ratio:%7.4o diff:%7.4o <-- !!!\n", alpha_MC, alpha_lift, ratio_alpha, diff_alpha;
+	else
+	    printf "alpha_MonteCarlo:%7.4o, alpha_lift:%7.4o, ratio:%7.4o diff:%7.4o\n", alpha_MC, alpha_lift, ratio_alpha, diff_alpha;
+	end if;
+    end for;
+    printf "av timing alpha_MC: %o ms, av timing alpha_lift: %o ms, number of prime ideals above small primes l < %o: %o\n", time_alpha_MC*(1000.0/tests_f), time_alpha_lift*(1000.0/tests_f), pmax, nb_prime_ideals;
+    print "----------------";
+    sum_time_alpha_MC +:= time_alpha_MC;
+    sum_time_alpha_lift +:= time_alpha_lift;
+    sum_nb_ideals +:= nb_prime_ideals;
+end for;
+printf "av timing alpha_MC: %o ms, av timing alpha_lift: %o ms, av number of prime ideals above small primes l < %o: %.2o\n", sum_time_alpha_MC*(1000.0/tests_h/tests_f), sum_time_alpha_lift*(1000.0/tests_h/tests_f), pmax, sum_nb_ideals*(1.0/tests_h);
+
+/*
+  deg_h:=2; deg_f:=2; monic_f:=false; pmax:=2000; N:=10000; tests_h:=10; tests_f:=10;
+  av timing alpha_MC: 822.800 ms, av timing alpha_lift: 67.800 ms, av prime ideals<2000: 450.10
+  new deg_h:=2; deg_f:=8; monic_f:=false; pmax:=2000; N:=10000; tests_h:=10; tests_f:=10;
+  av timing alpha_MC: 1088.500 ms, av timing alpha_lift: 103.600 ms, av prime ideals<2000: 449.00
+
+
+  deg_h:=3; deg_f:=2; monic_f:=false; pmax:=2000; N:=10000; tests_h:=10; tests_f:=10;
+  av timing alpha_MC: 1174.600 ms, av timing alpha_lift: 111.600 ms
+  new deg_h:=3; deg_f:=4; monic_f:=false; pmax:=2000; N:=10000; tests_h:=10; tests_f:=10;
+  av timing alpha_MC: 1438.600 ms, av timing alpha_lift: 136.000 ms, av prime ideals<2000: 547.90
+
+  deg_h:=4; deg_f:=3; monic_f:=false; pmax:=2000; N:=10000; tests_h:=10; tests_f:=10;
+  av timing alpha_MC: 3008.300 ms, av timing alpha_lift: 163.600 ms
+  new: av timing alpha_MC: 2932.400 ms, av timing alpha_lift: 169.700 ms, av prime ideals<2000: 624.00
+
+  deg_h:=5; deg_f:=3; monic_f:=false; pmax:=2000; N:=10000; tests_h:=10; tests_f:=10;
+  av timing alpha_MC: 4084.700 ms, av timing alpha_lift: 236.000 ms
+  av timing alpha_MC: 4268.700 ms, av timing alpha_lift: 237.200 ms, av prime ideals<2000: 691
+  new: av timing alpha_MC: 3927.500 ms, av timing alpha_lift: 227.000 ms, av prime ideals<2000: 695.60
+       av timing alpha_MC: 3838.300 ms, av timing alpha_lift: 240.300 ms, av prime ideals<2000: 687.20
+
+  deg_h:=6; deg_f:=3; monic_f:=false; pmax:=2000; N:=10000; tests_h:=10; tests_f:=10;
+  av timing alpha_MC: 5089.600 ms, av timing alpha_lift: 320.600 ms, av prime ideals<2000: 726.80
+
+*/

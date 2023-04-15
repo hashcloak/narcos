@@ -1,0 +1,269 @@
+/*
+   Implementation of algorithms in the paper:
+   On the alpha value of polynomials in the Tower Number Field Sieve Algorithm,
+   Aurore Guillevic (Inria Nancy, France) and Shashank Singh (IISER Bhopal, India)
+   eprint 2019/885.
+
+   Implementation: Aurore Guillevic and Shashank Singh
+
+   Test of alpha for h = y^2+5.
+
+   The computed exact value of alpha is a bias of valuation of (small) primes
+   at norms of elements of a number field compared to integers of the same size.
+
+   Compute the valuation as in Tab. 3.1 of Shi Bai thesis
+   See http://maths.anu.edu.au/~brent/pd/Bai-thesis.pdf
+
+   Other possible choices of h:
+   irreducible, class number = 1
+   y^3+2, y^3+3, y^3+4, y^3+5, y^3+6, y^3+9, y^3+10, y^3+12, y^3+16, y^3+17, y^3+18
+   irreducible, class number = 2
+   y^3+11, y^3+15
+   irreducible, class number = 3
+   y^3+7, y^3+13, y^3+14, y^3+19, y^3+20
+
+   Code for computing for N=10^8 random values the valuation for all prime
+   ideals up to B=2000, this is turned off because it takes some hours.
+   To re-compute the experimental valuations you need to give parameters to
+   Magma on the command line:
+
+   magma id:=1 h-deg2-non-principal.mag
+
+   see http://magma.maths.usyd.edu.au/magma/handbook/text/47
+   Turn on the relevant pieces of code and parallelize on a node of some dozen
+   of cores.
+*/
+SetColumns(0);
+SetClassGroupBounds("GRH");
+ZZ := Integers();
+QQ := Rationals();
+ZZy<y> := PolynomialRing(ZZ);
+
+Attach("../alpha_tnfs_2d.mag");
+Attach("utils.mag");
+
+/*
+if not assigned id then
+    printf "please assign an id in [1,2,...#jobs]\n";
+    quit;
+else
+    id := StringToInteger(id);
+end if;
+*/
+h:=y^2+5;
+
+deg_h := Degree(h);
+Kh<ah> := NumberField(h);
+Oh := MaximalOrder(Kh);  
+Oh1 := ideal<Oh|1>; // ideal containing all, for testing wether two ideals are coprime
+OhX<X> := PolynomialRing(Oh);
+Khx<x> := PolynomialRing(Kh);
+Kh_x1x2<x1,x2> := PolynomialRing(Kh,2);
+printf "h = %o\n", h;
+monic_f := true;
+
+deg_f := 4;
+f := x^4 - 3*ah*x^3 - (6*ah + 1)*x^2 - (ah + 10)*x - 10*ah;
+
+disc_f := Discriminant(f);
+I_disc_f := ideal<Oh|disc_f>;
+factors_disc_f := Factorization(I_disc_f);
+ld_f := LeadingCoefficient(f);
+I_ld_f := ideal<Oh|ld_f>;
+factors_ld_f := Factorization(I_ld_f);
+gcd_disc_f := Gcd([ZZ ! ei : ei in Eltseq(disc_f)]);
+bare_disc_f := disc_f/gcd_disc_f;
+I_bare_disc_f := ideal<Oh|bare_disc_f>;
+factors_bare_disc_f := Factorization(I_bare_disc_f);
+
+printf "f = %o\n", f;
+printf "disc(f) = %o\n", disc_f;
+printf "disc_f = %o * (%o)\n", gcd_disc_f, disc_f/gcd_disc_f;
+printf "Norm(disc_f/%o) = %o\n", gcd_disc_f, Factorization(ZZ ! Norm(bare_disc_f));
+printf "factors(disc(f)/%o) = %o\n", gcd_disc_f, factors_bare_disc_f;
+printf "ld(f) = %o\n", ld_f;
+printf "factors(ld(f)) = %o\n", factors_ld_f;
+
+B := 2000;
+PrB := PrimesUpTo(B);
+list_I := &cat [[i[1]: i in Factorisation(ideal<Oh|l>)]: l in PrB];
+printf "there are %o prime ideals above the %o prime numbers up to B=%o\n", #list_I, #PrB, B;
+
+N := 10^8;
+cores := 8; // change according to your configuration
+Ni := N div cores;
+A := 10^6;
+printf "computing experimentally the valuation for N=%o random coprime pairs\n", N;
+//printf "id = %o, %o samples\n", id, Ni;
+//sum_val_I, ratio_coprime_pairs_Oh := MonteCarlo_count_val(Ni,A,Oh1,deg_h,f,list_I);
+
+ratio_coprime_pairs_Oh := 0.538959693680161748182422735181;
+
+sum_val_I := [ 133337292, 0, 24996308, 83336012, 29163957, 14587525, 0, 0, 0, 276846, 4356821, 0, 3334049, 6901968, 0, 0, 9762294, 9760688, 0, 2327637, 0, 4260223, 0, 28847, 3276838, 3279910, 1491800, 1493539, 0, 0, 15994, 2409082, 2409891, 0, 1123108, 21155, 1981221, 3959372, 0, 0, 935132, 0, 919698, 1835347, 15635, 0, 1574813, 0, 10765, 5236, 669525, 0, 4385, 0, 0, 613395, 0, 0, 6578, 6268, 1106025, 1104418, 10772, 2649, 0, 2474, 0, 0, 449068, 0, 0, 873031, 0, 0, 1709, 0, 414985, 0, 0, 1137067, 0, 0, 372079, 1350, 1329, 355967, 711516, 352667, 353894, 2343, 326196, 325580, 0, 0, 0, 1744, 905, 287860, 1153834, 0, 285865, 1616, 0, 271100, 544887, 0, 703, 261418, 261367, 256637, 0, 0, 249921, 498994, 0, 489087, 0, 237410, 0, 1042, 0, 0, 452164, 452181, 0, 445696, 0, 0, 434346, 216041, 0, 0, 0, 456, 0, 204960, 879, 0, 198424, 397880, 0, 393142, 382616, 383568, 0, 191011, 0, 369578, 731049, 0, 649, 356035, 354794, 176350, 351564, 0, 607, 170764, 169605, 258, 267, 167130, 333050, 330303, 329742, 0, 1047, 270, 276, 156253, 311157, 310424, 0, 309149, 309028, 206, 235, 302449, 151328, 262, 0, 292440, 0, 185, 0, 0, 0, 0, 376, 275602, 0, 0, 170, 134813, 134308, 186, 0, 131418, 0, 129358, 0, 0, 254853, 0, 326, 123747, 0, 0, 121280, 244051, 242846, 0, 121036, 0, 241926, 120366, 0, 248, 298, 0, 0, 232335, 0, 0, 0, 225768, 113429, 224969, 112640, 110290, 0, 0, 122, 108010, 107510, 124, 0, 425479, 210868, 211287, 203, 0, 0, 0, 206, 0, 101842, 198, 0, 198380, 98919, 0, 0, 196210, 0, 0, 0, 191, 0, 95029, 183, 0, 94800, 188306, 188194, 0, 93621, 0, 367313, 0, 80, 154, 180337, 90198, 359921, 0, 0, 0, 0, 176702, 88711, 0, 88, 0, 0, 128, 84760, 84843, 83954, 84340, 71, 0, 0, 130, 0, 163868, 0, 0, 162548, 67, 0, 319841, 0, 57, 130, 0, 155672, 77892, 77318, 0, 64, 113, 153113, 0, 76917, 76753, 153143, 306809, 0, 0, 76058, 75380, 75209, 0, 0, 73157, 0, 44, 72611, 0, 125, 142084, 71205, 280843, 70035, 0, 0, 0, 70174, 53, 0, 69057, 69228, 96, 0, 64, 183, 134463, 67366, 0, 67555, 67186, 0, 134547, 0, 183, 48, 73, 0, 65233, 0, 259386, 0, 0, 64661, 81, 0, 127805, 0, 40, 87, 63286, 0, 46, 62337, 0, 61964, 0, 0, 0, 0, 0, 61403, 62022, 0, 122479, 78, 30, 119867, 60119, 0, 60001, 59784, 59992, 81, 67, 0, 0, 58409, 0, 116572, 0, 0, 0, 57613, 0, 57474, 0, 32, 0, 28, 112274, 223383, 112200, 56191, 111582, 0, 55751, 0, 43, 54841, 110023, 57, 108071, 54029, 107466, 53585, 0, 214165, 52, 80, 23, 0, 52653, 0, 52427, 52583, 104555, 104598, 33, 22, 58, 51311, 51362, 17, 54, 0, 0, 100595, 22, 20, 0 ];
+
+printf "\nratio_coprime_pairs = %o\n", ratio_coprime_pairs_Oh;
+printf "\nsum_val_I := %o;\n", sum_val_I;
+//printf "\nratio_coprime_pairs_%o = %o\n", id, ratio_coprime_pairs_Oh;
+//printf "\nsum_val_I_%o := %o;\n", id, sum_val_I;
+
+//quit;
+
+thr_val, idx_bad_I, idx_proj_I := compute_expected_valuation(list_I,f,I_disc_f,Oh1,Kh_x1x2);
+
+av_val := [1.0*sum_val_I[j]/N: j in [1..#list_I]];
+ratio := ratio_val(av_val, thr_val);
+
+wrong_values := print_ratio(ratio, thr_val, av_val, 0.2, N);
+printf "possibly wrong values at indices %o\n", wrong_values;
+printf "ideals concerned:\n";
+for idx_wrong in wrong_values do
+    I := list_I[idx_wrong];
+    Norm_I := Abs(ZZ!Norm(I));
+    I_pr, gen := IsPrincipal(I);
+    if I_pr then
+	gen_s := Sprintf("%11o", Kh!gen);
+    else
+	gen_s := &cat [Sprintf("%o,", Is): Is in Generators(I)];
+    end if;
+    printf "I%2o, Norm %6o, <%o>\n", idx_wrong, Norm_I, gen_s;
+end for;
+
+printf "the bad ideals are at index: %o\n", idx_bad_I;
+printf "the ratio between experimental and theoretical expected valuation for bad ideals is:\n  [";
+for i in idx_bad_I do
+    printf "%.5o, ", ratio[i];
+end for;
+printf "]\n";
+printf "these bad ideals are principal: %o\n", [IsPrincipal(list_I[i]): i in idx_bad_I];
+
+printf "projective roots:\n";
+printf "the ideals dividing ld(f) are at index: %o\n", idx_proj_I;
+printf "the ratio between experimental and theoretical expected valuation for these ideals is:\n  [";
+for i in idx_proj_I do
+    printf "%.5o, ", ratio[i];
+end for;
+printf "]\n";
+printf "these ideals are principal: %o\n", [IsPrincipal(list_I[i]): i in idx_proj_I];
+
+
+alpha_f := alpha_TNFS_2d(f,B);
+printf "now computes alpha: %o\n", alpha_f;
+printf "in basis 2: %.3o/Log(2) = %o\n\n", alpha_f, alpha_f/Log(2);
+
+// nice latex printing
+RR := RealField();
+
+printf "bad ideals\n";
+for i in idx_bad_I do
+    I := list_I[i];
+    d_I := Degree(I);
+    gens := Generators(I);
+    l := gens[1];
+    l := ZZ ! l;
+    if #gens gt 1 then
+	fi := gens[2];
+	fi := ZZx ! [ZZ ! ai: ai in Eltseq(fi)];
+	gen_s := Sprintf("%3o,%7o", l,fi);
+    else
+	gen_s := Sprintf("%3o        ", l);
+    end if;
+    if d_I gt 1 then
+	printf "$%3o^%o$ & $\\langle %12o \\rangle$ & %o & %18o & %.7o & %.7o & %.7o \\\\\n", l, d_I, gen_s, Valuation(I_disc_f, I), thr_val[i], RR!thr_val[i], av_val[i], ratio[i];
+    else
+	printf "$%3o  $ & $\\langle %12o \\rangle$ & %o & %18o & %.7o & %.7o & %.7o \\\\\n", l, gen_s, Valuation(I_disc_f, I), thr_val[i], RR!thr_val[i], av_val[i], ratio[i];
+    end if;
+end for;
+
+printf "regular ideals\n";
+for i := 1 to 100 do
+    if thr_val[i] eq 0 or i in idx_proj_I or i in idx_bad_I then
+	continue;
+    end if;
+    I := list_I[i];
+    d_I := Degree(I);
+    gens := Generators(I);
+    l := gens[1];
+    l := ZZ ! l;
+    if #gens gt 1 then
+	fi := gens[2];
+	fi := ZZx ! [ZZ ! ai: ai in Eltseq(fi)];
+	gen_s := Sprintf("%3o,%7o", l,fi);
+    else
+	gen_s := Sprintf("%3o        ", l);
+    end if;
+    if d_I gt 1 then
+	printf "$%3o^%o$ & $\\langle %12o \\rangle$ & %o & %18o & %.7o & %.7o & %.7o \\\\\n", l, d_I, gen_s, Valuation(I_disc_f, I), thr_val[i], RR!thr_val[i], av_val[i], ratio[i];
+    else
+	printf "$%3o  $ & $\\langle %12o \\rangle$ & %o & %18o & %.7o & %.7o & %.7o \\\\\n", l, gen_s, Valuation(I_disc_f, I), thr_val[i], RR!thr_val[i], av_val[i], ratio[i];
+    end if;
+end for;
+
+
+/*
+now computes alpha: -1.43243280694594023046674961308
+bad ideals
+$  2  $ & $\langle    2,  y + 1 \rangle$ & 4 &                4/3 & 1.3333333 & 1.3333729 & 1.0000297 \\
+$  3  $ & $\langle    3,  y + 1 \rangle$ & 2 &                  0 & 0.0000000 & 0.0000000 & 1.0000000 \\
+$  3  $ & $\langle    3,  y + 5 \rangle$ & 1 &                1/4 & 0.2500000 & 0.2499631 & 0.9998523 \\
+$  5  $ & $\langle    5,      y \rangle$ & 2 &                5/6 & 0.8333333 & 0.8333601 & 1.0000321 \\
+$ 29  $ & $\langle   29, y + 13 \rangle$ & 1 &               1/30 & 0.0333333 & 0.0333405 & 1.0002147 \\
+$263  $ & $\langle  263, y + 28 \rangle$ & 1 &          197/17292 & 0.0113926 & 0.0113707 & 0.9980793 \\
+$487  $ & $\langle  487,y + 344 \rangle$ & 1 &              1/488 & 0.0020492 & 0.0020496 & 1.0002048 \\
+regular ideals
+$  7  $ & $\langle    7,  y + 3 \rangle$ & 0 &               7/24 & 0.2916667 & 0.2916396 & 0.9999071 \\
+$  7  $ & $\langle    7,  y + 4 \rangle$ & 0 &               7/48 & 0.1458333 & 0.1458752 & 1.0002874 \\
+$ 19^2$ & $\langle   19         \rangle$ & 0 &         361/130320 & 0.0027701 & 0.0027685 & 0.9994064 \\
+$ 23  $ & $\langle   23,  y + 8 \rangle$ & 0 &             23/528 & 0.0435606 & 0.0435682 & 1.0001746 \\
+$ 29  $ & $\langle   29, y + 16 \rangle$ & 0 &             29/420 & 0.0690476 & 0.0690197 & 0.9995954 \\
+$ 41  $ & $\langle   41,  y + 6 \rangle$ & 0 &             41/420 & 0.0976190 & 0.0976229 & 1.0000399 \\
+$ 41  $ & $\langle   41, y + 35 \rangle$ & 0 &             41/420 & 0.0976190 & 0.0976069 & 0.9998754 \\
+$ 43  $ & $\langle   43, y + 34 \rangle$ & 0 &            43/1848 & 0.0232684 & 0.0232764 & 1.0003426 \\
+$ 47  $ & $\langle   47, y + 29 \rangle$ & 0 &            47/1104 & 0.0425725 & 0.0426022 & 1.0006992 \\
+$ 59^2$ & $\langle   59         \rangle$ & 0 &      3481/12117360 & 0.0002873 & 0.0002885 & 1.0041640 \\
+$ 61  $ & $\langle   61, y + 19 \rangle$ & 0 &            61/1860 & 0.0327957 & 0.0327684 & 0.9991670 \\
+$ 61  $ & $\langle   61, y + 42 \rangle$ & 0 &            61/1860 & 0.0327957 & 0.0327991 & 1.0001037 \\
+$ 67  $ & $\langle   67, y + 14 \rangle$ & 0 &            67/4488 & 0.0149287 & 0.0149180 & 0.9992833 \\
+$ 67  $ & $\langle   67, y + 53 \rangle$ & 0 &            67/4488 & 0.0149287 & 0.0149354 & 1.0004482 \\
+$ 79^2$ & $\langle   79         \rangle$ & 0 &      6241/38950080 & 0.0001602 & 0.0001599 & 0.9981855 \\
+$ 83  $ & $\langle   83, y + 24 \rangle$ & 0 &            83/3444 & 0.0240999 & 0.0240908 & 0.9996239 \\
+$ 83  $ & $\langle   83, y + 59 \rangle$ & 0 &            83/3444 & 0.0240999 & 0.0240989 & 0.9999596 \\
+$ 89  $ & $\langle   89, y + 66 \rangle$ & 0 &            89/7920 & 0.0112374 & 0.0112311 & 0.9994399 \\
+$ 97^2$ & $\langle   97         \rangle$ & 0 &      9409/44264640 & 0.0002126 & 0.0002116 & 0.9952370 \\
+$101  $ & $\langle  101, y + 46 \rangle$ & 0 &           101/5100 & 0.0198039 & 0.0198122 & 1.0004185 \\
+$101  $ & $\langle  101, y + 55 \rangle$ & 0 &           101/2550 & 0.0396078 & 0.0395937 & 0.9996434 \\
+$107  $ & $\langle  107, y + 40 \rangle$ & 0 &          107/11448 & 0.0093466 & 0.0093513 & 1.0005038 \\
+$109  $ & $\langle  109, y + 39 \rangle$ & 0 &          109/11880 & 0.0091751 & 0.0091970 & 1.0023864 \\
+$109  $ & $\langle  109, y + 70 \rangle$ & 0 &           109/5940 & 0.0183502 & 0.0183535 & 1.0001799 \\
+$113^2$ & $\langle  113         \rangle$ & 0 &     12769/81523680 & 0.0001566 & 0.0001564 & 0.9982166 \\
+$127  $ & $\langle  127, y + 73 \rangle$ & 0 &           127/8064 & 0.0157490 & 0.0157481 & 0.9999443 \\
+$137^2$ & $\langle  137         \rangle$ & 0 &    18769/176137680 & 0.0001066 & 0.0001076 & 1.0102414 \\
+$139^2$ & $\langle  139         \rangle$ & 0 &    19321/373301040 & 0.0000518 & 0.0000524 & 1.0116476 \\
+$149  $ & $\langle  149, y + 12 \rangle$ & 0 &          149/22200 & 0.0067117 & 0.0066953 & 0.9975473 \\
+$151^2$ & $\langle  151         \rangle$ & 0 &    22801/519885600 & 0.0000439 & 0.0000438 & 0.9998238 \\
+$163  $ & $\langle  163,y + 141 \rangle$ & 0 &          163/26568 & 0.0061352 & 0.0061340 & 0.9997962 \\
+$173^2$ & $\langle  173         \rangle$ & 0 &    29929/447872520 & 0.0000668 & 0.0000658 & 0.9843648 \\
+$179^2$ & $\langle  179         \rangle$ & 0 &    32041/513312840 & 0.0000624 & 0.0000627 & 1.0041649 \\
+$181  $ & $\langle  181, y + 30 \rangle$ & 0 &          181/16380 & 0.0110501 & 0.0110603 & 1.0009221 \\
+$181  $ & $\langle  181,y + 151 \rangle$ & 0 &          181/16380 & 0.0110501 & 0.0110442 & 0.9994678 \\
+$191^2$ & $\langle  191         \rangle$ & 0 &    36481/332715840 & 0.0001096 & 0.0001077 & 0.9824333 \\
+$193^2$ & $\langle  193         \rangle$ & 0 &   37249/1387488000 & 0.0000268 & 0.0000265 & 0.9867260 \\
+$199^2$ & $\langle  199         \rangle$ & 0 &   39601/1568239200 & 0.0000253 & 0.0000247 & 0.9797287 \\
+$223  $ & $\langle  223,y + 202 \rangle$ & 0 &          223/49728 & 0.0044844 & 0.0044907 & 1.0014015 \\
+$229  $ & $\langle  229, y + 37 \rangle$ & 0 &          229/26220 & 0.0087338 & 0.0087303 & 0.9996014 \\
+$239^2$ & $\langle  239         \rangle$ & 0 &   57121/3262808640 & 0.0000175 & 0.0000171 & 0.9761979 \\
+$241  $ & $\langle  241,y + 156 \rangle$ & 0 &          241/58080 & 0.0041494 & 0.0041498 & 1.0000966 \\
+$269  $ & $\langle  269,y + 159 \rangle$ & 0 &          269/72360 & 0.0037175 & 0.0037208 & 1.0008787 \\
+$271^2$ & $\langle  271         \rangle$ & 0 &   73441/5393580480 & 0.0000136 & 0.0000135 & 0.9914535 \\
+$277^2$ & $\langle  277         \rangle$ & 0 &   76729/5887339440 & 0.0000130 & 0.0000133 & 1.0197284 \\
+$281  $ & $\langle  281, y + 41 \rangle$ & 0 &          281/78960 & 0.0035588 & 0.0035597 & 1.0002546 \\
+$281  $ & $\langle  281,y + 240 \rangle$ & 0 &          281/39480 & 0.0071175 & 0.0071152 & 0.9996673 \\
+$283  $ & $\langle  283,y + 109 \rangle$ & 0 &          283/80088 & 0.0035336 & 0.0035267 & 0.9980351 \\
+$283  $ & $\langle  283,y + 174 \rangle$ & 0 &          283/80088 & 0.0035336 & 0.0035389 & 1.0015075 \\
+$293^2$ & $\langle  293         \rangle$ & 0 &   85849/3685025400 & 0.0000233 & 0.0000234 & 1.0057210 \\
+$307  $ & $\langle  307, y + 84 \rangle$ & 0 &          307/94248 & 0.0032574 & 0.0032620 & 1.0014111 \\
+$307  $ & $\langle  307,y + 223 \rangle$ & 0 &          307/94248 & 0.0032574 & 0.0032558 & 0.9995200 \\
+$331^2$ & $\langle  331         \rangle$ & 0 &  109561/6001806360 & 0.0000183 & 0.0000174 & 0.9553719 \\
+$337^2$ & $\langle  337         \rangle$ & 0 & 113569/12897917760 & 0.0000088 & 0.0000090 & 1.0277994 \\
+$347  $ & $\langle  347, y + 79 \rangle$ & 0 &         347/120408 & 0.0028819 & 0.0028786 & 0.9988659 \\
+$347  $ & $\langle  347,y + 268 \rangle$ & 0 &          347/30102 & 0.0115275 & 0.0115383 & 1.0009427 \\
+*/

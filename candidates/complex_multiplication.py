@@ -41,8 +41,10 @@ def make_curve(q,t,r,k,D,debug=False):
         if check:
             twist = True
         else: # twist didnt work => j = 0 or 1728
+            print("Using sextic twists")
             if j_inv == 0: # for j = 0, use sextic twists
-                prim = primitive_root(q)
+                # prim = primitive_root(q)
+                prim = 2
                 i = 1
                 while t != E.trace_of_frobenius() and i < 6:
                     E = orig_curve.sextic_twist(power_mod(prim,i,q))

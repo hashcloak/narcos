@@ -238,7 +238,7 @@ if __name__ == '__main__':
         if j_inv == 0 or j_inv == 1728 or D >= -388:
             if q.nbits() <= 512:
                 print_curve(q, t, r, k, D)
-                print("size of q", q.nbits())
+                #print("size of q", q.nbits())
                 c, kappa = Integer(32), Integer(-8)
                 l = q.nbits() * k * log(2)/log(e)
                 # We will use this as a conservative estimate for the number of bits of security for a candidate and use it as a starting point for the (T)NFS

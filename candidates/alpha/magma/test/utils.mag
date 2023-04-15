@@ -1,0 +1,180 @@
+/*
+   Implementation of algorithms in the paper:
+   On the alpha value of polynomials in the Tower Number Field Sieve Algorithm,
+   Aurore Guillevic (Inria Nancy, France) and Shashank Singh (IISER Bhopal, India)
+   eprint 2019/885.
+
+   Implementation: Aurore Guillevic and Shashank Singh
+
+   Test of alpha, utils functions.
+   Compute the valuation as in Tab. 3.1 of Shi Bai thesis
+   See http://maths.anu.edu.au/~brent/pd/Bai-thesis.pdf
+*/
+
+ZZ := Integers();
+QQ := Rationals();
+RR := RealField();
+
+intrinsic MonteCarlo_count_val(N::RngIntElt, A::RngIntElt, Oh1::RngOrdIdl, deg_h::RngIntElt, f::RngUPolElt, list_I::SeqEnum) -> SeqEnum, FldReElt
+{
+    Compute the average valuation of each prime ideal of list_I by a Monte-Carlo technique
+    N: number of samples
+    A: bound, a_ij in [-A,A]
+    Oh1: ideal 1 in Oh
+    deg_h: degree of polynomial h, sample two random vectors a, b of length deg_h
+    f: polynomial of coefficients in Oh
+    list_I: a list of prime ideals of Oh
+    Returns a list of the valuations at primes l for N samples,
+    and the average of ideals a*Oh, b*Oh being coprime
+}
+    local Oh, random_pairs, coprime_random_pairs, sum_val_I, i, aa_coeffs, bb_coeffs, aa, bb, RI, j;
+    Oh := Order(Oh1);
+    random_pairs := 0;
+    coprime_random_pairs := 0;
+    sum_val_I := [ ZZ|0 : I in list_I];
+    for i := 1 to N do
+	if (i mod 10^5) eq 0 then
+	    printf "%o ", i;
+	end if;
+	repeat
+	    // generate two coprime ideals in Oh (of any degree)
+	    repeat
+		aa_coeffs := [Random(-A,A): i in [0..deg_h-1]];
+		bb_coeffs := [Random(-A,A): i in [0..deg_h-2]] cat [Random(0,A)];
+		random_pairs +:= 1;
+	    until Gcd(aa_coeffs cat bb_coeffs) eq 1;
+	    aa:= Oh ! aa_coeffs;  bb:= Oh ! bb_coeffs;
+	until ideal<Oh|aa>+ideal<Oh|bb> eq Oh1;// ideals are coprime
+	coprime_random_pairs +:= 1;
+	RI := ideal<Oh|Resultant(f,aa+bb*Parent(f).1)>;
+	for j := 1 to #list_I do
+	    sum_val_I[j] +:= Valuation(RI, list_I[j]);
+	end for;
+    end for;
+    return sum_val_I, RealField()!coprime_random_pairs/random_pairs;
+end intrinsic;
+
+intrinsic compute_expected_valuation(list_I::SeqEnum,f::RngUPolElt,I_disc_f::RngOrdIdl,Oh1::RngOrdIdl,Kh_x1x2::RngMPol:print_first_N_ideals:=0) -> SeqEnum, SeqEnum, SeqEnum
+{
+    Calls average_valuation_homogeneous_coprime() from alpha-tnfs_2d.mag
+}
+    local idx_bad_I, idx_proj_I, val_f_I, bad_ideal, proj_ideal, I, Norm_I, I_pr, gen, gen_s, Oh, Kh;
+    idx_bad_I := [];
+    idx_proj_I := [];
+    val_f_I := [QQ!0: i in list_I];
+    bad_ideal := false;
+    proj_ideal := false;
+    Oh := Order(Oh1);
+    Kh := NumberField(Oh);
+
+    for i :=1 to #list_I do
+	I := list_I[i];
+	Norm_I := Abs(ZZ!Norm(I));
+	d_I := Degree(I);
+	I_pr, gen := IsPrincipal(I);
+	if I_pr then
+	    gen_s := Sprintf("%11o", Kh!gen);
+	else
+	    gen_s := &cat [Sprintf("%o,", Is): Is in Generators(I)];
+	end if;
+	val_f_I[i], bad_ideal, proj_ideal := average_valuation_homogeneous_coprime(f,I_disc_f,I,Norm_I,Oh1,Kh_x1x2);
+	if bad_ideal then
+	    Append(~idx_bad_I, i);
+	    printf "I%2o, Norm %6o, <%o>: bad,  val = %o\n", i, Norm_I, gen_s, val_f_I[i];
+	else
+	    if i le print_first_N_ideals then
+		printf "I%2o, Norm %6o, <%o>: good, val = %o\n", i, Norm_I, gen_s, val_f_I[i];
+	    end if;
+	end if;
+	if proj_ideal then
+	    Append(~idx_proj_I, i);
+	end if;
+    end for;
+    return val_f_I, idx_bad_I, idx_proj_I;
+end intrinsic;
+
+intrinsic ratio_val(av_val::SeqEnum, thr_val::SeqEnum) -> FldRatElt
+{   av_val is the average valuation obtained for N >= 10^6 random coprime pairs
+    (a,b)
+    if the theoretical valuation is lower than 5/N then it could be that there
+    was no hit while thr_val[i] > 0. Increase N to figure out.}
+    local ratio, size;
+    size := #av_val;
+    ratio := [1.0: i in [1..size]];
+    for i := 1 to size do
+	if thr_val[i] ne 0 then
+	    ratio[i] := av_val[i]/thr_val[i];
+	else
+	    if av_val[i] eq 0 then
+		ratio[i] := 1;
+	    else
+		ratio[i] := 0;
+	    end if;
+	end if;
+    end for;
+    return ratio;
+end intrinsic;
+
+intrinsic print_ratio(ratio::SeqEnum, thr_val::SeqEnum, av_val::SeqEnum, approx::FldReElt, N::RngIntElt) -> SeqEnum
+{
+    For example, approx=0.1
+    print the ratio of theoretical and experimental valuation only if the difference is higher thant the approximation factor given (in percentage)
+}
+    idx_bad_ratio := [];
+    for i := 1 to #ratio do
+	if (ratio[i] lt (1-approx) or ratio[i] gt (1+approx)) and (thr_val[i] gt 50/N) then
+	    printf "idx %3o error: ratio %.5o, theoretical val %o, average val %o \n", i, ratio[i], thr_val[i]*1.0, av_val[i];
+	    Append(~idx_bad_ratio, i);
+	end if;
+    end for;
+    return idx_bad_ratio;
+end intrinsic;
+
+function bad_ideals(list_I, disc_f, Oh1)
+    local idx_bad, i, I;
+    idx_bad := [ZZ|];
+    i := 1;
+    for I in list_I do
+	if is_bad_ideal(I, disc_f, Oh1) then
+	    Append(~idx_bad, i);
+	end if;
+	i +:= 1;
+    end for;
+    return idx_bad;
+end function;
+
+function GCD_ideals_from_coeffs(f, Oh)
+    return (&+ [ideal<Oh|coeff_i>: coeff_i in Coefficients(f)]);
+end function;
+
+intrinsic get_random_f(deg_f::RngIntElt, monic_f::BoolElt, Oh1::RngOrdIdl, Khx::RngUPol : fi_max:=12) -> RngUPolElt, FldNumElt, RngOrdIdl, FldNumElt, RngOrdIdl
+{
+Select a random-looking polynomial f whose coefficient ring is Kh
+}
+local Oh, Kh, deg_h, f, i, j, gcd_ZZ, coeff_i, disc_f, I_disc_f, ld_f, I_ld_f;
+    Oh := Order(Oh1);
+    Kh := NumberField(Oh);
+    deg_h := Degree(Kh);
+    //repeat
+	repeat
+	    if monic_f then
+		f:=Khx!([Kh!([Random(-fi_max,fi_max) :i in [0..deg_h-1]]) :j in [0..deg_f-1] ] cat [Kh!(1)] );// monic f
+	    else
+		repeat
+		    f:=Khx!([Kh!([Random(-fi_max,fi_max) :i in [0..deg_h-1]]) :j in [0..deg_f] ] );// non-monic f, test that Gcd(coeffs) = 1 and ideal<coeff_i> are all coprime
+	            gcd_ZZ := Gcd([ZZ !i: i in &cat [Eltseq(coeff_i): coeff_i in Coefficients(f)]]);
+		    if gcd_ZZ gt 1 then
+			f := f div gcd_ZZ;
+		    end if;
+		until ((&+ [ideal<Oh|coeff_i>: coeff_i in Coefficients(f)]) eq Oh1);
+	    end if;
+	until IsIrreducible(f);
+	disc_f := Discriminant(f);
+	I_disc_f := ideal<Oh|disc_f>;
+	//factors_disc_f := Factorization(I_disc_f);
+	ld_f := LeadingCoefficient(f);
+	I_ld_f := ideal<Oh|ld_f>;
+	//factors_ld_f := Factorization(I_ld_f);
+    //until (#factors_disc_f ge 6) and (#factors_ld_f ge 4);
+    return f, disc_f, I_disc_f, ld_f, I_ld_f;
+end intrinsic;

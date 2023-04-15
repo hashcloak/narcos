@@ -1,3 +1,6 @@
 [submodule "alpha"]
 	path = alpha
 	url = https://gitlab.inria.fr/tnfs-alpha/alpha.git
+[submodule "candidates/39590e207980ba2a8057cbf980c83e39"]
+	path = candidates/39590e207980ba2a8057cbf980c83e39
+	url = https://gist.github.com/39590e207980ba2a8057cbf980c83e39.git
